@@ -1,50 +1,78 @@
-import React, { useReducer } from "react";
-import logo from "./logo.svg";
+import { useEffect, useReducer } from "react";
+import normalizeString from "./util/normalizeString";
+import getRandomElement from "./util/getRandomElement";
 import "./App.css";
 
-type State =
+type State = Readonly<
   | {
       phase: "pre-game";
+      wordPack: readonly string[] | null;
     }
   | {
       phase: "in-game";
       goal: string;
       guess: string;
+      wordPack: readonly string[] | null;
     }
   | {
       phase: "post-game";
       goal: string;
-    };
+      wordPack: readonly string[] | null;
+    }
+>;
 
 type Action =
+  | { type: "load-data"; wordPack: readonly string[] }
   | { type: "start-game" }
   | { type: "update-guess"; newGuess: string };
 
 function getInitialState(): State {
-  return { phase: "pre-game" };
+  return { phase: "pre-game", wordPack: null };
 }
 
 function reducer(state: State, action: Action): State {
   switch (action.type) {
+    case "load-data": {
+      if (state.phase !== "pre-game") {
+        return state;
+      }
+      return { ...state, wordPack: action.wordPack };
+    }
     case "start-game": {
       if (state.phase === "in-game") {
         return state;
       }
 
+      const { wordPack } = state;
+      if (wordPack == null) {
+        return state;
+      }
+
       return {
         phase: "in-game",
-        goal: "abced",
+        goal: getRandomElement(wordPack),
         guess: "",
+        wordPack,
       };
     }
     case "update-guess": {
       if (state.phase !== "in-game") {
         return state;
       }
-      if (action.newGuess === state.goal) {
-        return { phase: "post-game", goal: state.goal };
+      if (normalizeString(action.newGuess) === state.goal) {
+        return {
+          phase: "post-game",
+          goal: state.goal,
+          wordPack: state.wordPack,
+        };
       }
       return { ...state, guess: action.newGuess };
+    }
+    case "load-data": {
+      if (state.phase === "pre-game") {
+        return { ...state, wordPack: action.wordPack };
+      }
+      return state;
     }
   }
   return state;
@@ -53,10 +81,34 @@ function reducer(state: State, action: Action): State {
 function App() {
   const [state, dispatch] = useReducer(reducer, null, getInitialState);
 
+  useEffect(() => {
+    fetch("fruits.txt")
+      .then((response) => response.text())
+      .then((text) => {
+        setTimeout(
+          () =>
+            dispatch({
+              type: "load-data",
+              wordPack: text
+                .split("\n")
+                .map(normalizeString)
+                .filter(Boolean),
+            }),
+          3000,
+        );
+      });
+  }, []);
+
+  let content = null;
   switch (state.phase) {
     case "pre-game": {
-      return (
-        <div>
+      if (state.wordPack == null) {
+        content = <>Loading data</>;
+        break;
+      }
+      content = (
+        <>
+          <div>Word pack is ready with {state.wordPack.length} words.</div>
           <button
             onClick={() =>
               dispatch({
@@ -66,13 +118,12 @@ function App() {
           >
             Begin new game.
           </button>
-
-          <pre>{JSON.stringify(state, null, 2)}</pre>
-        </div>
+        </>
       );
+      break;
     }
     case "in-game": {
-      return (
+      content = (
         <div>
           <div>Goal: {state.goal}</div>
           <label>
@@ -88,23 +139,27 @@ function App() {
               }
             />
           </label>
-          <pre>{JSON.stringify(state, null, 2)}</pre>
         </div>
       );
+      break;
     }
     case "post-game": {
-      return (
+      content = (
         <div>
           <div>Nice Game! You guessed {state.goal}</div>
           <button onClick={() => dispatch({ type: "start-game" })}>
             Begin new game.
           </button>
-          <pre>{JSON.stringify(state, null, 2)}</pre>
         </div>
       );
     }
   }
-  return null;
+  return (
+    <div>
+      {content}
+      <pre>{JSON.stringify(state, null, 2)}</pre>
+    </div>
+  );
 }
 
 export default App;
