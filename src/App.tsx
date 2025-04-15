@@ -12,12 +12,13 @@ type State = Readonly<
       phase: "in-game";
       goal: string;
       guess: string;
-      wordPack: readonly string[] | null;
+      wordPack: readonly string[];
+      wordsGuessed: number;
     }
   | {
       phase: "post-game";
       goal: string;
-      wordPack: readonly string[] | null;
+      wordPack: readonly string[];
     }
 >;
 
@@ -53,6 +54,7 @@ function reducer(state: State, action: Action): State {
         goal: getRandomElement(wordPack),
         guess: "",
         wordPack,
+        wordsGuessed: 0,
       };
     }
     case "update-guess": {
@@ -61,9 +63,11 @@ function reducer(state: State, action: Action): State {
       }
       if (normalizeString(action.newGuess) === state.goal) {
         return {
-          phase: "post-game",
-          goal: state.goal,
+          ...state,
+          goal: getRandomElement(state.wordPack),
           wordPack: state.wordPack,
+          guess: "",
+          wordsGuessed: state.wordsGuessed + 1,
         };
       }
       return { ...state, guess: action.newGuess };
@@ -89,10 +93,7 @@ function App() {
           () =>
             dispatch({
               type: "load-data",
-              wordPack: text
-                .split("\n")
-                .map(normalizeString)
-                .filter(Boolean),
+              wordPack: text.split("\n").map(normalizeString).filter(Boolean),
             }),
           3000,
         );
@@ -139,6 +140,7 @@ function App() {
               }
             />
           </label>
+          <div>Words Guessed: {state.wordsGuessed}</div>
         </div>
       );
       break;
